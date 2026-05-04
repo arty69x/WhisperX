@@ -4,10 +4,9 @@
 */
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 
-// Using gemini-2.5-pro for complex coding tasks.
-const GEMINI_MODEL = 'gemini-3-pro-preview';
+const GEMINI_MODEL = 'gemini-3.1-pro-preview';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GEMINI_API_KEY });
 
 const SYSTEM_INSTRUCTION = `You are an expert AI Engineer and Product Designer specializing in "bringing artifacts to life" as WhisperX.
 Your goal is to take a user uploaded file—which might be a polished UI design, a messy napkin sketch, a photo of a whiteboard with jumbled notes, or a picture of a real-world object (like a messy desk)—and instantly generate a fully functional, interactive, single-page HTML/JS/CSS application.
@@ -49,7 +48,7 @@ export async function bringToLife(prompt: string, fileBase64?: string, mimeType?
   
   // Strong directive for file-only inputs with emphasis on NO external images
   const finalPrompt = fileBase64 
-    ? "Analyze this image/document. Detect what functionality is implied. If it is a real-world object (like a desk), gamify it (e.g., a cleanup game). Build a fully interactive web app. IMPORTANT: Do NOT use external image URLs. Recreate the visuals using CSS, SVGs, or Emojis." 
+    ? "Analyze this image/document. Detect what functionality is implied. If it is a real-world object (like a desk), gamify it (e.g., a cleanup game). Build a fully interactive web app with drag/drop, drawing canvas, layer management, undo/redo, form validation, and subtle animation/sound feedback. IMPORTANT: Do NOT use external image URLs. Recreate the visuals using CSS, SVGs, or Emojis." 
     : prompt || "Create a demo app that shows off your capabilities.";
 
   parts.push({ text: finalPrompt });

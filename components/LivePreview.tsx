@@ -16,12 +16,7 @@ interface LivePreviewProps {
   onUpdateCreation?: (html: string) => void;
 }
 
-// Add type definition for the global pdfjsLib
-declare global {
-  interface Window {
-    pdfjsLib: any;
-  }
-}
+declare global { interface Window { pdfjsLib?: any; } }
 
 const LoadingStep = ({ text, active, completed }: { text: string, active: boolean, completed: boolean }) => (
     <div className={`flex items-center space-x-3 transition-all duration-500 ${active || completed ? 'opacity-100 translate-x-0' : 'opacity-30 translate-x-4'}`}>
@@ -36,55 +31,32 @@ const LoadingStep = ({ text, active, completed }: { text: string, active: boolea
         </div>
         <span className={`font-mono text-xs tracking-wide uppercase ${active ? 'text-txt' : completed ? 'text-muted line-through' : 'text-dim'}`}>{text}</span>
     </div>
+    <span className="font-mono text-xs uppercase tracking-wide text-zinc-400">{text}</span>
+  </div>
 );
 
 const PdfRenderer = ({ dataUrl }: { dataUrl: string }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const renderPdf = async () => {
-      if (!window.pdfjsLib) {
-        setError("PDF library not initialized");
-        setLoading(false);
-        return;
-      }
-
+      if (!window.pdfjsLib || !canvasRef.current) return;
       try {
-        setLoading(true);
-        // Load the document
-        const loadingTask = window.pdfjsLib.getDocument(dataUrl);
-        const pdf = await loadingTask.promise;
-        
-        // Get the first page
+        const pdf = await window.pdfjsLib.getDocument(dataUrl).promise;
         const page = await pdf.getPage(1);
-        
+        const viewport = page.getViewport({ scale: 2 });
         const canvas = canvasRef.current;
         if (!canvas) return;
-
-        const context = canvas.getContext('2d');
-        
-        // Calculate scale to make it look good (High DPI)
-        const viewport = page.getViewport({ scale: 2.0 });
-
-        canvas.height = viewport.height;
         canvas.width = viewport.width;
-
-        const renderContext = {
-          canvasContext: context,
-          viewport: viewport,
-        };
-
-        await page.render(renderContext).promise;
-        setLoading(false);
-      } catch (err) {
-        console.error("Error rendering PDF:", err);
-        setError("Could not render PDF preview.");
-        setLoading(false);
+        canvas.height = viewport.height;
+        const context = canvas.getContext('2d');
+        if (!context) return;
+        await page.render({ canvasContext: context, viewport }).promise;
+      } catch {
+        setError('Could not render PDF preview.');
       }
     };
-
     renderPdf();
   }, [dataUrl]);
 
@@ -430,8 +402,8 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                     )}
                  </div>
             </div>
-          </>
-        ) : null}
+          </div>
+        </> : null}
       </div>
     </div>
   );
