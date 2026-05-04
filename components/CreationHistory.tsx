@@ -26,11 +26,11 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
     <div className="w-full animate-in fade-in slide-in-from-bottom-8 duration-700">
       <div className="flex items-center space-x-3 mb-3 px-2 justify-between">
         <div className="flex items-center space-x-3">
-            <ClockIcon className="w-4 h-4 text-zinc-500" />
-            <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-500">Archive</h2>
-            <div className="h-px w-20 bg-zinc-800"></div>
+            <ClockIcon className="w-4 h-4 text-dim" />
+            <h2 className="text-xs font-bold uppercase tracking-wider text-dim">Archive</h2>
+            <div className="h-px w-20 bg-bdr"></div>
         </div>
-        <button onClick={() => onExportAll(history)} className="text-[10px] text-zinc-500 hover:text-white transition-colors uppercase tracking-wider">Export All</button>
+        <button onClick={() => onExportAll(history)} className="text-[10px] text-muted hover:text-white transition-colors uppercase tracking-wider">Export All</button>
       </div>
       
       {/* Horizontal Scroll Container for Compact Layout */}
@@ -41,31 +41,32 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
             <button
               key={item.id}
               onClick={() => onSelect(item)}
-              className="group flex-shrink-0 relative flex flex-col text-left w-44 h-28 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-600 rounded-lg transition-all duration-200 overflow-hidden"
+              className="group flex-shrink-0 relative flex flex-col text-left w-44 h-28 bg-bg2/60 backdrop-blur-md hover:bg-bg2 border border-bdr hover:border-acc/70 hover:shadow-[0_0_20px_rgba(0,216,255,0.15)] rounded-2xl transition-all duration-300 overflow-hidden"
             >
-              <div className="p-4 flex flex-col h-full">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="p-4 flex flex-col h-full relative z-10">
                 <div className="flex items-start justify-between mb-2">
-                  <div className="p-1.5 bg-zinc-800 rounded group-hover:bg-zinc-700 transition-colors border border-zinc-700/50">
+                  <div className="p-1.5 bg-bg3/80 rounded-lg group-hover:bg-bg3 transition-colors border border-bdr shadow-inner">
                       {isPdf ? (
-                          <DocumentIcon className="w-4 h-4 text-zinc-400" />
+                          <DocumentIcon className="w-4 h-4 text-muted" />
                       ) : item.originalImage ? (
-                          <PhotoIcon className="w-4 h-4 text-zinc-400" />
+                          <PhotoIcon className="w-4 h-4 text-muted" />
                       ) : (
-                          <DocumentIcon className="w-4 h-4 text-zinc-400" />
+                          <DocumentIcon className="w-4 h-4 text-muted" />
                       )}
                   </div>
-                  <span className="text-[10px] font-mono text-zinc-600 group-hover:text-zinc-400">
+                  <span className="text-[10px] font-mono text-dim group-hover:text-muted">
                     {item.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
                 
                 <div className="mt-auto">
-                  <h3 className="text-sm font-medium text-zinc-300 group-hover:text-white truncate">
+                  <h3 className="text-sm font-medium text-txt group-hover:text-white truncate">
                     {item.name}
                   </h3>
                   <div className="flex items-center space-x-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span className="text-[10px] text-blue-400">Restore</span>
-                    <ArrowRightIcon className="w-3 h-3 text-blue-400" />
+                    <span className="text-[10px] text-acc">Restore</span>
+                    <ArrowRightIcon className="w-3 h-3 text-acc" />
                   </div>
                 </div>
               </div>
