@@ -286,6 +286,16 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
 
             .grid-debug-lines { outline: 1px solid blue !important; }
             .grid-debug-outline * { outline: 1px solid red !important; }
+            .grid-gap-label {
+                position: absolute;
+                background: rgba(0, 0, 0, 0.7);
+                color: #fff;
+                font-size: 10px;
+                padding: 2px 4px;
+                border-radius: 4px;
+                z-index: 1000;
+                pointer-events: none;
+            }
             .grid-item-selected { outline: 3px solid yellow !important; }
             .inspector-ring { outline: 3px solid #ff00ff !important; outline-offset: 2px; }
             
@@ -344,6 +354,23 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                     if (e.data.id) document.getElementById(e.data.id)?.classList.add('inspector-ring');
                 }
             });
+
+            // Grid Gap Debugging
+            function showGridGaps() {
+                document.querySelectorAll('.grid-gap-label').forEach(el => el.remove());
+                document.querySelectorAll('*').forEach(el => {
+                    const style = window.getComputedStyle(el);
+                    if (style.display === 'grid' && (style.columnGap !== 'normal' || style.rowGap !== 'normal')) {
+                        const rect = el.getBoundingClientRect();
+                        const label = document.createElement('div');
+                        label.className = 'grid-gap-label';
+                        label.textContent = "Gap: " + style.columnGap + "/" + style.rowGap;
+                        label.style.top = (rect.top + window.scrollY) + "px";
+                        label.style.left = (rect.left + window.scrollX) + "px";
+                        document.body.appendChild(label);
+                    }
+                });
+            }
 
             // Drag and Drop Reordering
             let draggedNode = null;
@@ -411,6 +438,11 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
         if (showGrid) {
             if (debugOptions.lines) doc.body.classList.add('grid-debug-lines');
             if (debugOptions.outlines) doc.body.classList.add('grid-debug-outline');
+            
+            // Execute showGridGaps after script is parsed and DOM is ready
+            const gapScript = document.createElement('script');
+            gapScript.textContent = 'showGridGaps();';
+            doc.body.appendChild(gapScript);
         } else {
             doc.body.classList.remove('grid-debug-lines');
             doc.body.classList.remove('grid-debug-outline');
@@ -478,8 +510,17 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                 parser: 'html',
                 plugins: [parserHtml, parserPostcss, parserBabel],
             });
-            // Simulate AI semantic analysis
-            const suggestions = `\n<!-- \n  [AI Semantic Styling Suggestions]:\n  - Consider replacing generic <div> containers with semantic <section> or <article> tags.\n  - Apply semantic aria-labels to interactive regions.\n-->\n`;
+            // Improved AI semantic analysis
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(formatted, 'text/html');
+            const hasDivs = doc.querySelectorAll('div').length > 5;
+            const hasMain = doc.querySelector('main');
+            
+            let suggestions = `\n<!-- \n  [AI Semantic Styling Suggestions]:\n`;
+            if (hasDivs) suggestions += `  - High number of <div> elements detected. Consider using <section>, <article>, or <aside> for better semantic structure.\n`;
+            if (!hasMain) suggestions += `  - No <main> tag found. Recommend wrapping main content in a <main> tag.\n`;
+            suggestions += `  - Review interactive elements for proper role attributes.\n-->\n`;
+            
             setCustomCode(formatted + suggestions);
         } catch (e) {
             console.error('Error formatting code:', e);
