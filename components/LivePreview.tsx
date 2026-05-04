@@ -148,6 +148,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
         osc.stop(ctx.currentTime + 0.3);
     };
 
+    const [showLibrary, setShowLibrary] = useState(false);
     const [showCode, setShowCode] = useState(false);
     const [customCode, setCustomCode] = useState<string>('');
     const [history, setHistory] = useState<string[]>(['']);
@@ -761,6 +762,13 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
             {!isLoading && creation && (
                 <>
                     <button 
+                        onClick={() => setShowLibrary(!showLibrary)}
+                        title="UI Component Library"
+                        className={`p-1.5 rounded-lg transition-all ${showLibrary ? 'bg-bg3 text-txt border border-bdr' : 'text-dim hover:text-txt hover:bg-bg3/50 border border-transparent'}`}
+                    >
+                        <SparklesIcon className="w-4 h-4" />
+                    </button>
+                    <button 
                         onClick={() => {
                             if (showCode && customCode !== creation.html) {
                                 onUpdateCreation?.(customCode);
@@ -1014,37 +1022,33 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                  )}
                  {/* Element Inspector Sidebar */}
                  {isInspectorActive && selectedElement && (
-                    <div className="absolute top-0 right-0 w-80 h-full bg-bg/90 backdrop-blur-3xl border-l border-acc/20 p-5 overflow-y-auto text-xs z-20 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-                        <div className="flex justify-between items-center mb-6">
-                            <h4 className="font-bold text-acc tracking-wider uppercase text-[11px]">Inspector Panel</h4>
-                            <button onClick={() => setSelectedElement(null)} className="text-muted hover:text-white transition-colors">Close</button>
+                    <div className="absolute top-0 right-0 w-80 h-full bg-bg/95 backdrop-blur-3xl border-l border-acc/30 p-6 overflow-y-auto text-xs z-20 shadow-[0_0_60px_rgba(0,0,0,0.8)]">
+                        <div className="flex justify-between items-center mb-8 pb-4 border-b border-acc/20">
+                            <h4 className="font-bold text-acc tracking-widest uppercase text-xs">Inspector Panel</h4>
+                            <button onClick={() => setSelectedElement(null)} className="text-muted hover:text-white transition-colors">✕</button>
                         </div>
-                        <div className="space-y-4">
-                            <div className="bg-bg2/50 border border-bdr/50 p-3 rounded-lg text-[10px]">
-                                <p className="font-bold text-acc mb-2 uppercase tracking-wide">Hierarchy</p>
-                                <div className="text-muted mb-3 overflow-auto whitespace-nowrap bg-black/20 p-2 rounded">
+                        <div className="space-y-6">
+                            <div className="bg-bg2/40 border border-acc/10 p-4 rounded-xl text-[11px]">
+                                <p className="font-bold text-acc mb-3 uppercase tracking-wider">Hierarchy & Accessibility</p>
+                                <div className="text-muted mb-4 overflow-auto whitespace-nowrap bg-black/30 p-3 rounded-lg border border-acc/10">
                                     {selectedElement.breadcrumbs?.map((b: any, i: number) => (
-                                        <span key={i} className="hover:text-acc cursor-pointer">
+                                        <span key={i} className="hover:text-acc cursor-pointer font-mono">
                                             {b.tagName.toLowerCase()}{b.id ? `#${b.id}` : ''}
                                             {i < selectedElement.breadcrumbs.length - 1 && ' > '}
                                         </span>
                                     ))}
                                 </div>
-                                <p className="font-bold text-acc mb-2 uppercase tracking-wide">Accessibility</p>
-                                <div className="text-muted grid grid-cols-2 gap-2 bg-black/20 p-2 rounded">
-                                    <span className="truncate">Role: {selectedElement.ariaProperties?.role}</span>
-                                    <span className="truncate">Label: {selectedElement.ariaProperties?.ariaLabel}</span>
-                                    <span className="truncate">Expanded: {selectedElement.ariaProperties?.ariaExpanded}</span>
-                                    <span className="truncate">Hidden: {selectedElement.ariaProperties?.ariaHidden}</span>
+                                <div className="text-dim grid grid-cols-2 gap-3 bg-black/30 p-3 rounded-lg border border-acc/5">
+                                    <span className="truncate">Role: <span className="text-txt">{selectedElement.ariaProperties?.role}</span></span>
+                                    <span className="truncate">Label: <span className="text-txt">{selectedElement.ariaProperties?.ariaLabel}</span></span>
                                 </div>
                             </div>
-                            <div className="text-muted text-[10px]">Dimensions: {selectedElement.dimensions?.width.toFixed(0)}x{selectedElement.dimensions?.height.toFixed(0)}</div>
-                            <div className="text-muted text-[10px]">Position: {selectedElement.dimensions?.top.toFixed(0)} top, {selectedElement.dimensions?.left.toFixed(0)} left</div>
-                            <div className="flex gap-2 mb-2">
-                                <button onClick={copyStyles} className="bg-acc text-bg text-[10px] px-2 py-1 rounded">Copy Styles</button>
-                                <button onClick={undoStyle} className="bg-bg3 text-white text-[10px] px-2 py-1 rounded" disabled={styleHistory.length === 0}>Undo</button>
-                                <button onClick={redoStyle} className="bg-bg3 text-white text-[10px] px-2 py-1 rounded" disabled={styleRedoHistory.length === 0}>Redo</button>
+                            <div className="flex gap-2">
+                                <button onClick={copyStyles} className="flex-1 bg-acc/10 text-acc border border-acc/30 font-bold px-3 py-2 rounded-lg hover:bg-acc/20 transition-all">Copy Styles</button>
+                                <button onClick={undoStyle} className="bg-bg3 text-white px-3 py-2 rounded-lg hover:bg-bdr transition-all" disabled={styleHistory.length === 0}>Undo</button>
+                                <button onClick={redoStyle} className="bg-bg3 text-white px-3 py-2 rounded-lg hover:bg-bdr transition-all" disabled={styleRedoHistory.length === 0}>Redo</button>
                             </div>
+                            {/* ... rest of the content unchanged ... */}
                             <div className="flex gap-2 mb-4">
                                 <input 
                                     className="bg-bg text-txt text-[10px] px-2 py-1 rounded flex-1"

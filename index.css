@@ -5,16 +5,27 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Vibrant Colors */
-  --color-bg: #0f172a;
-  --color-bg2: #1e293b;
-  --color-bg3: #334155;
-  --color-txt: #f8fafc;
-  --color-muted: #94a3b8;
-  --color-acc: #00d8ff;
-  --color-acc-glow: #00d8ff;
+  /* Vibrant Colors - WhisperX Theme */
+  --color-bg: #050507;
+  --color-bg2: #0f172a;
+  --color-bg3: #1e293b;
+  --color-txt: #f1f5f9;
+  --color-muted: #64748b;
+  --color-acc: #00f2ff;
+  --color-acc-glow: #00f2ff;
+  --color-pur: #7c3aed;
   --color-bdr: #334155;
   --color-dim: #475569;
   --color-grn: #22c55e;
   --color-amb: #eab308;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
 }
