@@ -180,9 +180,18 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
     const [filter, setFilter] = useState({ grayscale: 0, sepia: 0, brightness: 100, contrast: 100 });
     const [activePreset, setActivePreset] = useState<string | null>(null);
     const [showGrid, setShowGrid] = useState(false);
+    const [debugOptions, setDebugOptions] = useState({ lines: false, outlines: false });
     const [isInspectorActive, setIsInspectorActive] = useState(false);
     const [selectedElement, setSelectedElement] = useState<any>(null);
-    const [debugOptions, setDebugOptions] = useState({ lines: false, outlines: false });
+    const [styleHistory, setStyleHistory] = useState<any[]>([]);
+    
+    // Add logic to toggle inspector ring
+    useEffect(() => {
+        const iframe = document.querySelector('iframe');
+        if (iframe?.contentWindow) {
+            iframe.contentWindow.postMessage({ type: 'SET_INSPECTOR_RING', id: selectedElement?.id }, '*');
+        }
+    }, [selectedElement]);
     const [filterPresets, setFilterPresets] = useState<Record<string, typeof filter>>({
         neon: { grayscale: 0, sepia: 0, brightness: 150, contrast: 120 },
         cyberpunk: { grayscale: 10, sepia: 50, brightness: 120, contrast: 150 },
@@ -211,7 +220,26 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
         setFilter(savedPresets[name]);
         setActivePreset(name);
     };
-    
+
+    const deletePreset = (name: string) => {
+        const updated = { ...savedPresets };
+        delete updated[name];
+        setSavedPresets(updated);
+        localStorage.setItem('filterPresets', JSON.stringify(updated));
+    };
+
+    const copyStyles = () => {
+        if (!selectedElement) return;
+        const styleStr = Object.entries(selectedElement.styles).map(([k, v]) => `${k}: ${v}`).join(';\n');
+        navigator.clipboard.writeText(styleStr);
+    };
+
+    const revertToOriginal = () => {
+        if (styleHistory.length === 0) return;
+        const last = styleHistory[styleHistory.length - 1];
+        setSelectedElement({ ...selectedElement, styles: last });
+        setStyleHistory(styleHistory.slice(0, -1));
+    };
     useEffect(() => {
         const handleMessage = (e: MessageEvent) => {
             if (e.data.type === 'INSPECT_ELEMENT') {
@@ -222,7 +250,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
         };
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
-    }, []);                
+    }, []);
 
     const updateElementStyle = (property: string, value: string) => {
         if (!selectedElement) return;
@@ -259,6 +287,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
             .grid-debug-lines { outline: 1px solid blue !important; }
             .grid-debug-outline * { outline: 1px solid red !important; }
             .grid-item-selected { outline: 3px solid yellow !important; }
+            .inspector-ring { outline: 3px solid #ff00ff !important; outline-offset: 2px; }
             
             /* Custom Cursor */
             .cursor-drag { cursor: grabbing !important; }
@@ -293,21 +322,26 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                 e.stopPropagation();
                 const el = e.target;
                 const computed = window.getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
                 const info = {
                     tagName: el.tagName,
                     id: el.id,
                     className: el.className,
                     styles: Object.fromEntries(Object.entries(computed).filter(([k,v]) => typeof v === 'string')),
-                    html: el.outerHTML
+                    html: el.outerHTML,
+                    dimensions: { width: rect.width, height: rect.height, top: rect.top, left: rect.left }
                 };
                 window.parent.postMessage({ type: 'INSPECT_ELEMENT', info }, '*');
             }, true);
 
-            // Style Updates
+            // Style Updates and Inspector Ring
             window.addEventListener('message', (e) => {
                 if (e.data.type === 'UPDATE_STYLE') {
                     const el = document.getElementById(e.data.id);
                     if (el) el.style[e.data.property] = e.data.value;
+                } else if (e.data.type === 'SET_INSPECTOR_RING') {
+                    document.querySelectorAll('.inspector-ring').forEach(el => el.classList.remove('inspector-ring'));
+                    if (e.data.id) document.getElementById(e.data.id)?.classList.add('inspector-ring');
                 }
             });
 
@@ -734,7 +768,10 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                                      <button key={p} onClick={() => { setFilter(filterPresets[p]); setActivePreset(p); }} aria-label={`Apply ${p} preset`} className={`px-2 py-0.5 rounded text-[10px] ${activePreset === p ? 'bg-acc text-bg' : 'bg-bg'}`}>{p}</button>
                                  ))}
                                  {Object.keys(savedPresets).map(p => (
-                                     <button key={p} onClick={() => loadPreset(p)} aria-label={`Apply saved ${p} preset`} className={`px-2 py-0.5 rounded text-[10px] border border-acc ${activePreset === p ? 'bg-acc text-bg' : 'bg-bg'}`}>{p}</button>
+                                     <div key={p} className="flex items-center gap-0.5">
+                                         <button onClick={() => loadPreset(p)} aria-label={`Apply saved ${p} preset`} className={`px-2 py-0.5 rounded text-[10px] border border-acc ${activePreset === p ? 'bg-acc text-bg' : 'bg-bg'}`}>{p}</button>
+                                         <button onClick={() => deletePreset(p)} aria-label={`Delete ${p} preset`} className="text-[10px] text-red-500">x</button>
+                                     </div>
                                  ))}
                              </div>
                              <div className="flex gap-1 mt-1">
@@ -769,6 +806,12 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                             <div className="bg-bg p-2 rounded">
                                 <p className="text-muted">Element: &lt;{selectedElement.tagName.toLowerCase()}&gt;</p>
                                 <p className="text-muted">ID: {selectedElement.id || 'none'}</p>
+                                <p className="text-muted">Dimensions: {selectedElement.dimensions?.width.toFixed(0)}x{selectedElement.dimensions?.height.toFixed(0)}</p>
+                                <p className="text-muted">Position: {selectedElement.dimensions?.top.toFixed(0)} top, {selectedElement.dimensions?.left.toFixed(0)} left</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={copyStyles} className="bg-acc text-bg text-[10px] px-2 py-1 rounded">Copy Styles</button>
+                                <button onClick={revertToOriginal} className="bg-bg3 text-white text-[10px] px-2 py-1 rounded">Revert Last</button>
                             </div>
                             <div className="space-y-1">
                                 <p className="font-bold text-muted">Computed Styles</p>
@@ -776,7 +819,14 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                                     {Object.entries(selectedElement.styles).map(([key, value]) => (
                                         <div key={key} className="flex justify-between">
                                             <span className="text-acc">{key}:</span>
-                                            <span className="text-white">{value as string}</span>
+                                            <input 
+                                                className="bg-transparent text-right text-white w-20"
+                                                value={value as string}
+                                                onChange={(e) => {
+                                                    setStyleHistory([...styleHistory, selectedElement.styles]);
+                                                    updateElementStyle(key, e.target.value);
+                                                }}
+                                            />
                                         </div>
                                     ))}
                                 </div>
