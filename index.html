@@ -4,16 +4,80 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gemini 3 - Bring Anything to Life</title>
+    <title>WhisperX</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- PDF.js for rendering PDF previews -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
+    <!-- Tailwind CDN config -->
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              display: ['Outfit', 'sans-serif'],
+              mono: ['Space Mono', 'monospace'],
+            },
+            colors: {
+              bg: '#070c12',
+              bg2: '#0e1520',
+              bg3: '#131e2c',
+              hov: '#192436',
+              bdr: '#1e3048',
+              bdr2: 'rgba(30,48,72,0.5)',
+              txt: '#d8eaf8',
+              muted: '#7a99b8',
+              dim: '#3d5a7a',
+              acc: '#00d8ff',
+              pur: '#7c4dff',
+              grn: '#00e676',
+              red: '#ff1744',
+              amb: '#ffab00',
+            },
+            keyframes: {
+              wave: {
+                '0%': { transform: 'translateY(0) scaleY(1)' },
+                '50%': { transform: 'translateY(-10px) scaleY(1.1)' },
+                '100%': { transform: 'translateY(10px) scaleY(0.9)' },
+              },
+              float: {
+                '0%, 100%': { transform: 'translate(0, 0)' },
+                '50%': { transform: 'translate(20px, -20px)' },
+              },
+              hologram: {
+                '0%': { backgroundPosition: '0% 50%', textShadow: '0 0 10px rgba(0, 216, 255, 0.2)' },
+                '50%': { backgroundPosition: '100% 50%', textShadow: '0 0 20px rgba(124, 77, 255, 0.6)' },
+                '100%': { backgroundPosition: '0% 50%', textShadow: '0 0 10px rgba(0, 216, 255, 0.2)' },
+              },
+              progress: {
+                '0%': { backgroundPosition: '0 0' },
+                '100%': { backgroundPosition: '1rem 0' },
+              },
+              fadeIn: {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              }
+            },
+            animation: {
+              'wave': 'wave 15s ease-in-out infinite alternate',
+              'float': 'float 10s ease-in-out infinite',
+              'hologram': 'hologram 4s ease-in-out infinite',
+              'progress': 'progress 1s linear infinite',
+              'fadeIn': 'fadeIn 1s ease-out',
+            }
+          }
+        }
+      }
+    </script>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
       @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
       
       body {
         font-family: 'Inter', sans-serif;
@@ -23,8 +87,8 @@
       
       /* Technical Dot Grid Background */
       .bg-dot-grid {
+        background-image: linear-gradient(rgba(0,216,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,216,255,0.03) 1px, transparent 1px);
         background-size: 40px 40px;
-        background-image: radial-gradient(circle, #3f3f46 1px, transparent 1px);
       }
 
       /* Smooth scrolling for the whole app */
