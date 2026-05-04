@@ -41,9 +41,17 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
   const [isDragging, setIsDragging] = useState(false);
   const [rotateX, setRotateX] = useState(0);
   const [rotateY, setRotateY] = useState(0);
-  const cardRef = useRef<HTMLLabelElement>(null);
+  const [prompt, setPrompt] = useState("");
+  const cardRef = useRef<HTMLDivElement>(null);
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLLabelElement>) => {
+  const suggestedPrompts = [
+      "A sleek SaaS dashboard with neon accents",
+      "A minimalist creative portfolio in monochrome",
+      "A retro 8-bit themed e-commerce checkout",
+      "A brutalist blog layout with massive typography"
+  ];
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!cardRef.current || isGenerating || disabled) return;
     const rect = cardRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -78,7 +86,7 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
       return;
     }
 
-    onGenerate("", file);
+    onGenerate(prompt, file);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,53 +95,103 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
     }
   };
 
-  const handleDrop = useCallback((e: React.DragEvent<HTMLLabelElement>) => {
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
     if (disabled || isGenerating) return;
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFile(e.dataTransfer.files[0]);
     }
-  }, [disabled, isGenerating]);
+  }, [disabled, isGenerating, prompt]);
 
-  const handleDragOver = useCallback((e: React.DragEvent<HTMLLabelElement>) => {
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (!disabled && !isGenerating) {
         setIsDragging(true);
     }
   }, [disabled, isGenerating]);
 
-  const handleDragLeave = useCallback((e: React.DragEvent<HTMLLabelElement>) => {
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
   }, []);
 
-  return (
-    <div className="w-full max-w-5xl mx-auto perspective-[2000px] mt-8 pb-32 px-4">
-      <div 
-        className={`relative group transition-all duration-700 ease-out ${isDragging ? 'scale-[1.02]' : ''}`}
-        style={{ perspective: "2000px" }}
-      >
-        {/* Glow underneath the card */}
-        <div className={`absolute -inset-1 bg-gradient-to-r from-acc via-pur to-acc rounded-[2rem] blur-2xl opacity-20 group-hover:opacity-60 transition-opacity duration-700 ease-out animate-pulse ${isDragging ? 'opacity-80' : ''}`}></div>
+  const handleGenerateClick = () => {
+    if (prompt.trim() !== '') {
+        onGenerate(prompt);
+    }
+  };
 
-        <label
-          ref={cardRef}
-          className={`
-            relative block w-full
-            h-72 sm:h-80 md:h-[26rem]
-            bg-bg2/80 
-            backdrop-blur-3xl
-            rounded-[2rem] border border-white/5
-            cursor-pointer overflow-hidden
-            transition-all duration-700 ease-out
-            shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_20px_60px_-10px_rgba(0,0,0,0.8)]
-            ${isDragging 
-              ? 'border-acc/50 bg-bg2/90 shadow-[inset_0_0_80px_rgba(0,216,255,0.2)]' 
-              : 'hover:border-acc/30 hover:bg-bg3/60 hover:shadow-[0_30px_80px_rgba(0,0,0,0.8)] hover:shadow-acc/20'
-            }
-            ${isGenerating ? 'pointer-events-none' : ''}
-          `}
+  return (
+    <div className="w-full max-w-5xl mx-auto mt-8 pb-32 px-4 relative z-10 flex flex-col items-center">
+      
+      {/* Search Input Section */}
+      <div className="w-full max-w-3xl mb-8 transform transition-all duration-700 ease-out translate-y-0 opacity-100 relative z-20">
+          <div className="relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-acc via-pur to-acc rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-500"></div>
+              <div className="relative flex items-center bg-bg2 border border-bdr rounded-2xl overflow-hidden shadow-2xl">
+                  <input 
+                      type="text" 
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      placeholder="Describe the UI you want to build..." 
+                      className="flex-1 bg-transparent border-none text-txt px-4 py-3 md:px-6 md:py-4 outline-none placeholder:text-dim font-mono text-base md:text-sm"
+                      disabled={isGenerating || disabled}
+                      onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleGenerateClick();
+                      }}
+                  />
+                  <button 
+                      onClick={handleGenerateClick}
+                      disabled={isGenerating || disabled || !prompt.trim()}
+                      className="mx-2 px-4 py-2 md:px-6 md:py-2 bg-white text-black font-bold uppercase tracking-wider text-[10px] md:text-xs rounded-xl hover:bg-acc hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                      Generate
+                  </button>
+              </div>
+          </div>
+          
+          {/* Prompt Suggestions */}
+          <div className="mt-4 flex flex-wrap gap-2 justify-center">
+              <span className="text-xs font-mono text-dim uppercase tracking-widest mr-2 flex items-center">Try:</span>
+              {suggestedPrompts.map((s, i) => (
+                  <button 
+                      key={i}
+                      onClick={() => setPrompt(s)}
+                      disabled={isGenerating || disabled}
+                      className="text-[10px] font-mono text-dim hover:text-acc border border-bdr hover:border-acc/50 rounded-full px-3 py-1 bg-bg3/30 hover:bg-bg3 transition-all"
+                  >
+                      {s}
+                  </button>
+              ))}
+          </div>
+      </div>
+
+      <div className="w-full perspective-[2000px]">
+          <div 
+            className={`relative group transition-all duration-700 ease-out ${isDragging ? 'scale-[1.02]' : ''}`}
+            style={{ perspective: "2000px" }}
+          >
+            {/* Glow underneath the card */}
+            <div className={`absolute -inset-1 bg-gradient-to-r from-acc via-pur to-acc rounded-[2rem] blur-2xl opacity-20 group-hover:opacity-60 transition-opacity duration-700 ease-out animate-pulse ${isDragging ? 'opacity-80' : ''}`}></div>
+
+            <label
+              ref={cardRef}
+              className={`
+                relative block w-full
+                h-60 sm:h-72 md:h-80
+                bg-bg2/80 
+                backdrop-blur-3xl
+                rounded-[2rem] border border-white/5
+                cursor-pointer overflow-hidden
+                transition-all duration-700 ease-out
+                shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_20px_60px_-10px_rgba(0,0,0,0.8)]
+                ${isDragging 
+                  ? 'border-acc/50 bg-bg2/90 shadow-[inset_0_0_80px_rgba(0,216,255,0.2)]' 
+                  : 'hover:border-acc/30 hover:bg-bg3/60 hover:shadow-[0_30px_80px_rgba(0,0,0,0.8)] hover:shadow-acc/20'
+                }
+                ${isGenerating ? 'pointer-events-none' : ''}
+              `}
           style={{
             transform: `rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(0)`,
             transformStyle: "preserve-3d"
@@ -229,6 +287,7 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
             />
         </label>
       </div>
+     </div>
     </div>
   );
 };
