@@ -884,6 +884,194 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
             // Audio Feedback
             const playAudio = (sound) => window.parent.postMessage({ type: 'PLAY_AUDIO', sound }, '*');
             
+            // --- IDE Pane Layout Resizer ---
+            function initIDELayoutResizer() {
+                if (window.__ideLayoutResizerInit) return;
+                window.__ideLayoutResizerInit = true;
+
+                const style = document.createElement('style');
+                style.textContent = '.ide-pane-container { position: relative; }' +
+                    '.ide-resizer-right, .ide-resizer-bottom { position: absolute; z-index: 9999; transition: background 0.2s ease, box-shadow 0.2s ease; }' +
+                    '.ide-resizer-right { top: 0; right: -4px; width: 8px; height: 100%; cursor: col-resize; }' +
+                    '.ide-resizer-bottom { bottom: -4px; left: 0; width: 100%; height: 8px; cursor: row-resize; }' +
+                    '.ide-resizer-right:hover, .ide-resizer-bottom:hover { background: rgba(0, 242, 255, 0.4); box-shadow: 0 0 10px rgba(0, 242, 255, 0.8); }' +
+                    '.ide-resizer-active { background: rgba(0, 242, 255, 0.8) !important; }' +
+                    'body.is-resizing { user-select: none !important; }' +
+                    'body.is-resizing-col { cursor: col-resize !important; }' +
+                    'body.is-resizing-row { cursor: row-resize !important; }';
+                document.head.appendChild(style);
+
+                function attachLayoutResizers() {
+                    const elements = document.querySelectorAll('aside, main, nav, section, article, .sidebar, .pane, .panel, [class*="w-64"], [class*="w-72"], [class*="max-w-"]');
+                    elements.forEach(el => {
+                        if (el.dataset.hasIdeResizer === 'true' || el.offsetWidth < 50 || el.tagName === 'BODY' || el.tagName === 'HTML' || el.id === 'root') return;
+                        el.dataset.hasIdeResizer = 'true';
+                        
+                        const computed = window.getComputedStyle(el);
+                        if (computed.position === 'static') {
+                            el.style.position = 'relative';
+                        }
+                        
+                        const resizerR = document.createElement('div');
+                        resizerR.className = 'ide-resizer-right';
+                        el.appendChild(resizerR);
+                        
+                        const resizerB = document.createElement('div');
+                        resizerB.className = 'ide-resizer-bottom';
+                        el.appendChild(resizerB);
+                        
+                        let startX, startY, startWidth, startHeight;
+                        
+                        // Right Resizer Drag
+                        resizerR.addEventListener('mousedown', (e) => {
+                            e.preventDefault(); e.stopPropagation();
+                            startX = e.clientX;
+                            startWidth = el.offsetWidth;
+                            document.body.classList.add('is-resizing', 'is-resizing-col');
+                            resizerR.classList.add('ide-resizer-active');
+                            if(typeof playAudio === 'function') playAudio('drag');
+                            
+                            const onMoveRight = (ev) => {
+                                const dx = ev.clientX - startX;
+                                el.style.flex = 'none';
+                                el.style.width = Math.max(50, startWidth + dx) + 'px';
+                                el.style.minWidth = Math.max(50, startWidth + dx) + 'px';
+                                el.style.maxWidth = 'none';
+                            };
+                            
+                            const onUpRight = () => {
+                                document.removeEventListener('mousemove', onMoveRight);
+                                document.removeEventListener('mouseup', onUpRight);
+                                document.body.classList.remove('is-resizing', 'is-resizing-col');
+                                resizerR.classList.remove('ide-resizer-active');
+                                if(typeof playAudio === 'function') playAudio('success');
+                            };
+                            
+                            document.addEventListener('mousemove', onMoveRight);
+                            document.addEventListener('mouseup', onUpRight);
+                        });
+                        
+                        // Bottom Resizer Drag
+                        resizerB.addEventListener('mousedown', (e) => {
+                            e.preventDefault(); e.stopPropagation();
+                            startY = e.clientY;
+                            startHeight = el.offsetHeight;
+                            document.body.classList.add('is-resizing', 'is-resizing-row');
+                            resizerB.classList.add('ide-resizer-active');
+                            if(typeof playAudio === 'function') playAudio('drag');
+                            
+                            const onMoveBot = (ev) => {
+                                const dy = ev.clientY - startY;
+                                el.style.flex = 'none';
+                                el.style.height = Math.max(50, startHeight + dy) + 'px';
+                                el.style.minHeight = Math.max(50, startHeight + dy) + 'px';
+                                el.style.maxHeight = 'none';
+                            };
+                            
+                            const onUpBot = () => {
+                                document.removeEventListener('mousemove', onMoveBot);
+                                document.removeEventListener('mouseup', onUpBot);
+                                document.body.classList.remove('is-resizing', 'is-resizing-row');
+                                resizerB.classList.remove('ide-resizer-active');
+                                if(typeof playAudio === 'function') playAudio('success');
+                            };
+                            
+                            document.addEventListener('mousemove', onMoveBot);
+                            document.addEventListener('mouseup', onUpBot);
+                        });
+                    });
+                }
+
+                attachLayoutResizers();
+                setInterval(attachLayoutResizers, 2000);
+            }
+            initIDELayoutResizer();
+            
+            // --- Form Field Validation with Audio & CSS ---
+            function initFormValidation() {
+                if (window.__formValidationInit) return;
+                window.__formValidationInit = true;
+                
+                const style = document.createElement('style');
+                style.textContent = '.whisper-input-invalid { border-color: #ef4444 !important; outline-color: #ef4444 !important; animation: whisperShake 0.4s ease-in-out; box-shadow: 0 0 0 1px #ef4444 !important; } ' +
+                                    '.whisper-input-valid { border-color: #22c55e !important; outline-color: #22c55e !important; box-shadow: 0 0 0 1px #22c55e !important; } ' +
+                                    '@keyframes whisperShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }';
+                document.head.appendChild(style);
+
+                let audioCtx = null;
+                function playValidationSound(isValid) {
+                    try {
+                        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                        if (audioCtx.state === 'suspended') audioCtx.resume();
+                        const osc = audioCtx.createOscillator();
+                        const gainNode = audioCtx.createGain();
+                        osc.connect(gainNode);
+                        gainNode.connect(audioCtx.destination);
+                        if (isValid) {
+                            osc.type = 'sine';
+                            osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                            osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+                            gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+                            osc.start();
+                            osc.stop(audioCtx.currentTime + 0.1);
+                        } else {
+                            osc.type = 'square';
+                            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                            osc.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.15);
+                            gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+                            osc.start();
+                            osc.stop(audioCtx.currentTime + 0.15);
+                        }
+                    } catch (e) {
+                        // ignore audio context errors
+                    }
+                }
+
+                function handleInputValidation(e) {
+                    const el = e.target;
+                    if (!el.matches('input[type="text"], input[type="email"], input[type="password"], input[type="number"], textarea, select')) return;
+                    
+                    const isValid = el.checkValidity();
+                    const isEmpty = el.value.trim().length === 0;
+                    
+                    // Don't validate if empty and not required (or just focused and typing)
+                    // We'll mark neutral if it's empty and not required
+                    if (isEmpty && !el.required) {
+                         el.classList.remove('whisper-input-valid', 'whisper-input-invalid');
+                         delete el.dataset.lastValidationSound;
+                         return;
+                    }
+                    
+                    // Prevent annoying real-time validation off first character unless it's a simple pattern
+                    // but the spec specifically asked for real-time validation.
+
+                    el.classList.remove('whisper-input-valid', 'whisper-input-invalid');
+                    
+                    if (isValid) {
+                        el.classList.add('whisper-input-valid');
+                        if (el.dataset.lastValidationSound !== 'valid') {
+                            playValidationSound(true);
+                            el.dataset.lastValidationSound = 'valid';
+                        }
+                    } else {
+                        // Check if it's empty but required - might not want to shake until blur?
+                        // Let's just do it directly.
+                        el.classList.add('whisper-input-invalid');
+                        if (el.dataset.lastValidationSound !== 'invalid') {
+                            playValidationSound(false);
+                            el.dataset.lastValidationSound = 'invalid';
+                        }
+                    }
+                }
+
+                document.addEventListener('input', handleInputValidation, true);
+                document.addEventListener('change', handleInputValidation, true);
+                document.addEventListener('blur', handleInputValidation, true); // Validate on blur as well
+            }
+            initFormValidation();
+
             // Resize Overlay Setup
             const resizeOverlay = document.createElement('div');
             resizeOverlay.id = 'whisperx-resize-overlay';
