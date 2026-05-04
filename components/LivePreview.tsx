@@ -3,9 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowDownTrayIcon, PlusIcon, ViewColumnsIcon, DocumentIcon, CodeBracketIcon, XMarkIcon, ShareIcon, CommandLineIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, PlusIcon, ViewColumnsIcon, DocumentIcon, CodeBracketIcon, XMarkIcon, ShareIcon, CommandLineIcon, SparklesIcon, CpuChipIcon } from '@heroicons/react/24/outline';
 import { Creation } from './CreationHistory';
 import Editor from '@monaco-editor/react';
+import prettier from 'prettier/standalone';
+import * as parserHtml from 'prettier/plugins/html';
+import * as parserPostcss from 'prettier/plugins/postcss';
+import * as parserBabel from 'prettier/plugins/babel';
 
 interface LivePreviewProps {
   creation: Creation | null;
@@ -115,10 +119,271 @@ const PdfRenderer = ({ dataUrl }: { dataUrl: string }) => {
 export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, uploadProgress, isFocused, onReset, onUpdateCreation }) => {
     const [loadingStep, setLoadingStep] = useState(0);
     const [showSplitView, setShowSplitView] = useState(false);
+    const audioCtx = useRef<AudioContext | null>(null);
+
+    const playAudioEffect = (type: 'click' | 'success' | 'invalid' | 'drag') => {
+        if (!audioCtx.current) audioCtx.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const ctx = audioCtx.current;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        if (type === 'click') {
+            osc.frequency.setValueAtTime(440, ctx.currentTime);
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.1);
+        } else if (type === 'success') {
+            osc.frequency.setValueAtTime(600, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.3);
+        } else if (type === 'invalid') {
+            osc.frequency.setValueAtTime(200, ctx.currentTime);
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
+        }
+        
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
+    };
+
     const [showCode, setShowCode] = useState(false);
     const [customCode, setCustomCode] = useState<string>('');
+    const [history, setHistory] = useState<string[]>(['']);
+    const [historyPtr, setHistoryPtr] = useState(0);
+    const editorRef = useRef<any>(null);
+
+    const updateCode = (newCode: string) => {
+        setCustomCode(newCode);
+        const newHistory = history.slice(0, historyPtr + 1);
+        newHistory.push(newCode);
+        setHistory(newHistory);
+        setHistoryPtr(newHistory.length - 1);
+    };
+
+    const undo = () => {
+        if (historyPtr > 0) {
+            setHistoryPtr(historyPtr - 1);
+            setCustomCode(history[historyPtr - 1]);
+        }
+    };
     
-    // Zoom and pan state
+    const redo = () => {
+        if (historyPtr < history.length - 1) {
+            setHistoryPtr(historyPtr + 1);
+            setCustomCode(history[historyPtr + 1]);
+        }
+    };
+
+    // Visual Filter & Grid Debugger State
+    const [filter, setFilter] = useState({ grayscale: 0, sepia: 0, brightness: 100, contrast: 100 });
+    const [activePreset, setActivePreset] = useState<string | null>(null);
+    const [showGrid, setShowGrid] = useState(false);
+    const [isInspectorActive, setIsInspectorActive] = useState(false);
+    const [selectedElement, setSelectedElement] = useState<any>(null);
+    const [debugOptions, setDebugOptions] = useState({ lines: false, outlines: false });
+    const [filterPresets, setFilterPresets] = useState<Record<string, typeof filter>>({
+        neon: { grayscale: 0, sepia: 0, brightness: 150, contrast: 120 },
+        cyberpunk: { grayscale: 10, sepia: 50, brightness: 120, contrast: 150 },
+        minimal: { grayscale: 100, sepia: 0, brightness: 100, contrast: 100 },
+        glitch: { grayscale: 50, sepia: 20, brightness: 140, contrast: 200 },
+        neon_glow: { grayscale: 0, sepia: 0, brightness: 180, contrast: 110 },
+        retro_scanline: { grayscale: 30, sepia: 40, brightness: 110, contrast: 130 }
+    });
+    const [savedPresets, setSavedPresets] = useState<Record<string, typeof filter>>({});
+    const [newPresetName, setNewPresetName] = useState('');
+
+    useEffect(() => {
+        const stored = localStorage.getItem('filterPresets');
+        if (stored) setSavedPresets(JSON.parse(stored));
+    }, []);
+
+    const savePreset = () => {
+        if (!newPresetName) return;
+        const updated = { ...savedPresets, [newPresetName]: filter };
+        setSavedPresets(updated);
+        localStorage.setItem('filterPresets', JSON.stringify(updated));
+        setNewPresetName('');
+    };
+
+    const loadPreset = (name: string) => {
+        setFilter(savedPresets[name]);
+        setActivePreset(name);
+    };
+    
+    useEffect(() => {
+        const handleMessage = (e: MessageEvent) => {
+            if (e.data.type === 'INSPECT_ELEMENT') {
+                setSelectedElement(e.data.info);
+            } else if (e.data.type === 'PLAY_AUDIO') {
+                playAudioEffect(e.data.sound);
+            }
+        };
+        window.addEventListener('message', handleMessage);
+        return () => window.removeEventListener('message', handleMessage);
+    }, []);                
+
+    const updateElementStyle = (property: string, value: string) => {
+        if (!selectedElement) return;
+        const newStyles = { ...selectedElement.styles, [property]: value };
+        setSelectedElement({ ...selectedElement, styles: newStyles });
+        // Send message to iframe to update style
+        const iframe = document.querySelector('iframe');
+        if (iframe?.contentWindow) {
+            iframe.contentWindow.postMessage({ type: 'UPDATE_STYLE', id: selectedElement.id, property, value }, '*');
+        }
+    };
+    const processedHtml = React.useMemo(() => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(customCode, 'text/html');
+
+        // Apply filters & debugging
+        const style = document.createElement('style');
+        style.textContent = `
+            body { 
+                filter: grayscale(${filter.grayscale}%) sepia(${filter.sepia}%) brightness(${filter.brightness}%) contrast(${filter.contrast}%); 
+                transition: filter 0.3s ease;
+                cursor: default;
+            }
+            button, a { cursor: pointer; transition: transform 0.2s, filter 0.2s; }
+            button:hover, a:hover { transform: translateY(-2px); filter: brightness(1.1); }
+            
+            /* Animation */
+            @keyframes bounce {
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.05); }
+            }
+            .drop-confirmed { animation: bounce 0.3s ease; }
+
+            .grid-debug-lines { outline: 1px solid blue !important; }
+            .grid-debug-outline * { outline: 1px solid red !important; }
+            .grid-item-selected { outline: 3px solid yellow !important; }
+            
+            /* Custom Cursor */
+            .cursor-drag { cursor: grabbing !important; }
+            
+            /* Drag and Drop */
+            .dragging { opacity: 0.5; border: 2px dashed #00d8ff; cursor: grabbing !important; transition: opacity 0.2s; }
+            .drop-target { border: 2px solid #00d8ff; background: rgba(0, 216, 255, 0.1); transition: all 0.2s ease; transform: scale(1.02); }
+            /* Cancel Indicator */
+            .drag-invalid { cursor: no-drop !important; border-color: red !important; }
+            
+            /* Interactive State */
+            .interactive-node { transition: all 0.2s ease; }
+            .interactive-node:hover { transform: scale(1.01); box-shadow: 0 0 5px rgba(0,216,255,0.2); }
+        `;
+        doc.head.appendChild(style);
+
+        // Inject interaction script
+        const script = document.createElement('script');
+        script.textContent = `
+            const isInspectorActive = ${isInspectorActive.toString()};
+            
+            // Audio Feedback
+            const playAudio = (sound) => window.parent.postMessage({ type: 'PLAY_AUDIO', sound }, '*');
+            
+            // Interaction Controller
+            document.addEventListener('click', (e) => {
+                if (!isInspectorActive) {
+                    playAudio('click');
+                    return;
+                }
+                e.preventDefault();
+                e.stopPropagation();
+                const el = e.target;
+                const computed = window.getComputedStyle(el);
+                const info = {
+                    tagName: el.tagName,
+                    id: el.id,
+                    className: el.className,
+                    styles: Object.fromEntries(Object.entries(computed).filter(([k,v]) => typeof v === 'string')),
+                    html: el.outerHTML
+                };
+                window.parent.postMessage({ type: 'INSPECT_ELEMENT', info }, '*');
+            }, true);
+
+            // Style Updates
+            window.addEventListener('message', (e) => {
+                if (e.data.type === 'UPDATE_STYLE') {
+                    const el = document.getElementById(e.data.id);
+                    if (el) el.style[e.data.property] = e.data.value;
+                }
+            });
+
+            // Drag and Drop Reordering
+            let draggedNode = null;
+            document.addEventListener('dragstart', (e) => {
+                draggedNode = e.target;
+                e.target.classList.add('dragging');
+                document.body.classList.add('cursor-drag');
+                playAudio('drag');
+            });
+            document.addEventListener('dragend', (e) => {
+                e.target.classList.remove('dragging');
+                document.body.classList.remove('cursor-drag');
+            });
+            document.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                const target = e.target.closest('*');
+                if (isInspectorActive) return;
+                
+                if (target && target !== draggedNode && target.parentElement === draggedNode.parentElement) {
+                    target.classList.add('drop-target');
+                    target.classList.remove('drag-invalid');
+                } else if (target) {
+                    target.classList.add('drag-invalid');
+                }
+            });
+            document.addEventListener('dragleave', (e) => { 
+                e.target.classList.remove('drop-target');
+                e.target.classList.remove('drag-invalid');
+            });
+            document.addEventListener('drop', (e) => {
+                e.preventDefault();
+                if (isInspectorActive) return;
+                const target = e.target.closest('*');
+                if (target && target !== draggedNode && target.parentElement === draggedNode.parentElement) {
+                    const parent = draggedNode.parentElement;
+                    const children = Array.from(parent.children);
+                    const draggedIndex = children.indexOf(draggedNode);
+                    const targetIndex = children.indexOf(target);
+                    if (draggedIndex < targetIndex) {
+                        parent.insertBefore(draggedNode, target.nextSibling);
+                    } else {
+                        parent.insertBefore(draggedNode, target);
+                    }
+                    target.classList.remove('drop-target');
+                    target.classList.add('drop-confirmed');
+                    setTimeout(() => target.classList.remove('drop-confirmed'), 300);
+                    playAudio('success');
+                } else {
+                    playAudio('invalid');
+                }
+            });
+
+            // Atomic Node Interaction
+            document.querySelectorAll('*').forEach(el => {
+                if (el.children.length === 0) el.classList.add('interactive-node');
+                el.addEventListener('click', (e) => {
+                    if (isInspectorActive) return;
+                    e.stopPropagation();
+                    el.classList.toggle('grid-item-selected');
+                });
+            });
+        `;
+        doc.body.appendChild(script);
+
+        if (showGrid) {
+            if (debugOptions.lines) doc.body.classList.add('grid-debug-lines');
+            if (debugOptions.outlines) doc.body.classList.add('grid-debug-outline');
+        } else {
+            doc.body.classList.remove('grid-debug-lines');
+            doc.body.classList.remove('grid-debug-outline');
+        }
+
+        return doc.documentElement.outerHTML;
+    }, [customCode, filter, showGrid, debugOptions]);
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
@@ -172,6 +437,21 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
         }
         setShowCode(false);
     }, [creation]);
+
+    const handleBeautify = async () => {
+        try {
+            const formatted = await prettier.format(customCode, {
+                parser: 'html',
+                plugins: [parserHtml, parserPostcss, parserBabel],
+            });
+            // Simulate AI semantic analysis
+            const suggestions = `\n<!-- \n  [AI Semantic Styling Suggestions]:\n  - Consider replacing generic <div> containers with semantic <section> or <article> tags.\n  - Apply semantic aria-labels to interactive regions.\n-->\n`;
+            setCustomCode(formatted + suggestions);
+        } catch (e) {
+            console.error('Error formatting code:', e);
+            alert('Failed to beautify code. Please check for syntax errors.');
+        }
+    };
 
     const handleDownloadAsHtml = () => {
         const codeToDownload = customCode || creation?.html;
@@ -386,9 +666,9 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
             {/* App Preview Panel */}
             <div className={`relative h-full bg-white transition-all duration-500 overflow-hidden ${showSplitView && creation.originalImage ? 'w-full md:w-1/2 h-1/2 md:h-full border-t md:border-t-0 border-bdr' : 'w-full'} shadow-[0_0_50px_rgba(0,216,255,0.05)] hover:shadow-[0_0_80px_rgba(124,77,255,0.1)]`}>
                  <div className="absolute top-4 right-4 z-10 flex bg-white/90 backdrop-blur shadow-md rounded-md border border-zinc-200 overflow-hidden text-zinc-700">
-                     <button onClick={handleZoomOut} className="px-3 py-1 hover:bg-zinc-100 border-r border-zinc-200" title="Zoom Out">-</button>
-                     <button onClick={handleZoomReset} className="px-3 py-1 hover:bg-zinc-100 border-r border-zinc-200 text-xs font-mono" title="Reset Zoom">{Math.round(zoom * 100)}%</button>
-                     <button onClick={handleZoomIn} className="px-3 py-1 hover:bg-zinc-100" title="Zoom In">+</button>
+                     <button onClick={handleZoomOut} className="px-3 py-1 hover:bg-zinc-100 border-r border-zinc-200" aria-label="Zoom Out">-</button>
+                     <button onClick={handleZoomReset} className="px-3 py-1 hover:bg-zinc-100 border-r border-zinc-200 text-xs font-mono" aria-label="Reset Zoom">{Math.round(zoom * 100)}%</button>
+                     <button onClick={handleZoomIn} className="px-3 py-1 hover:bg-zinc-100" aria-label="Zoom In">+</button>
                  </div>
                  
                  <div 
@@ -404,13 +684,24 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                     onMouseLeave={handleMouseUp}
                  >
                     {showCode ? (
-                        <div className="w-full h-full text-left" onMouseDown={(e) => e.stopPropagation()}>
+                        <div className="w-full h-full text-left flex flex-col" onMouseDown={(e) => e.stopPropagation()}>
+                            <div className="bg-bg3 p-2 flex justify-end border-b border-bdr">
+                                <button 
+                                    onClick={handleBeautify}
+                                    aria-label="Beautify code in editor"
+                                    className="flex items-center space-x-2 text-xs text-acc hover:text-white px-3 py-1 bg-bg2 rounded border border-acc/30 hover:border-acc transition-all"
+                                >
+                                    <SparklesIcon className="w-3 h-3" />
+                                    <span>Beautify Code</span>
+                                </button>
+                            </div>
                             <Editor
                                 height="100%"
                                 defaultLanguage="html"
                                 theme="vs-dark"
                                 value={customCode}
-                                onChange={(value) => setCustomCode(value || '')}
+                                onChange={(value) => updateCode(value || '')}
+                                onMount={(editor) => { editorRef.current = editor; }}
                                 options={{
                                     minimap: { enabled: false },
                                     fontSize: 14,
@@ -422,13 +713,84 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                     ) : (
                         <iframe
                             title="WhisperX Live Preview"
-                            srcDoc={customCode}
+                            srcDoc={processedHtml}
                             className="w-full h-full pointer-events-auto"
                             style={{ pointerEvents: isDragging ? 'none' : 'auto' }}
                             sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin"
                         />
                     )}
                  </div>
+                 {/* Filter & Debug Toolbar */}
+                 {!showCode && (
+                    <div className="absolute bottom-4 left-4 bg-bg2/90 backdrop-blur p-3 rounded-xl border border-bdr flex flex-col gap-3 z-10 text-xs">
+                        <div className="flex flex-col gap-2">
+                             <span className="text-muted">Filters</span>
+                             <div className="flex gap-2">
+                                <input type="range" min="0" max="100" value={filter.grayscale} onChange={(e) => setFilter({...filter, grayscale: parseInt(e.target.value)})} aria-label="Grayscale filter" className="w-20" />
+                                <input type="range" min="0" max="100" value={filter.sepia} onChange={(e) => setFilter({...filter, sepia: parseInt(e.target.value)})} aria-label="Sepia filter" className="w-20" />
+                             </div>
+                             <div className="flex gap-1 flex-wrap">
+                                 {Object.keys(filterPresets).map(p => (
+                                     <button key={p} onClick={() => { setFilter(filterPresets[p]); setActivePreset(p); }} aria-label={`Apply ${p} preset`} className={`px-2 py-0.5 rounded text-[10px] ${activePreset === p ? 'bg-acc text-bg' : 'bg-bg'}`}>{p}</button>
+                                 ))}
+                                 {Object.keys(savedPresets).map(p => (
+                                     <button key={p} onClick={() => loadPreset(p)} aria-label={`Apply saved ${p} preset`} className={`px-2 py-0.5 rounded text-[10px] border border-acc ${activePreset === p ? 'bg-acc text-bg' : 'bg-bg'}`}>{p}</button>
+                                 ))}
+                             </div>
+                             <div className="flex gap-1 mt-1">
+                                 <input type="text" placeholder="Preset name" value={newPresetName} onChange={(e) => setNewPresetName(e.target.value)} className="bg-bg text-[10px] px-1 w-full rounded" />
+                                 <button onClick={savePreset} className="text-[10px] bg-acc text-bg px-2 rounded">Save</button>
+                             </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <span className="text-muted">Grid Debug</span>
+                            <div className="flex gap-2">
+                                <button onClick={() => setShowGrid(!showGrid)} aria-label="Toggle grid" className={`px-2 py-1 rounded ${showGrid ? 'bg-acc text-bg' : 'bg-bg'}`}>Toggle Grid</button>
+                                <button onClick={() => setDebugOptions({...debugOptions, lines: !debugOptions.lines})} aria-label="Toggle grid lines" className={`px-2 py-1 rounded ${debugOptions.lines ? 'bg-acc text-bg' : 'bg-bg'}`}>Lines</button>
+                                <button onClick={() => setDebugOptions({...debugOptions, outlines: !debugOptions.outlines})} aria-label="Toggle element outlines" className={`px-2 py-1 rounded ${debugOptions.outlines ? 'bg-acc text-bg' : 'bg-bg'}`}>Outlines</button>
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <span className="text-muted">Inspector</span>
+                            <button onClick={() => setIsInspectorActive(!isInspectorActive)} aria-label="Toggle Inspector" className={`px-2 py-1 rounded ${isInspectorActive ? 'bg-acc text-bg' : 'bg-bg'}`}>
+                                {isInspectorActive ? 'Inspector Active' : 'Activate Inspector'}
+                            </button>
+                        </div>
+                    </div>
+                 )}
+                 {/* Element Inspector Sidebar */}
+                 {isInspectorActive && selectedElement && (
+                    <div className="absolute top-0 right-0 w-80 h-full bg-bg2/95 border-l border-bdr p-4 overflow-y-auto text-xs z-20">
+                        <div className="flex justify-between items-center mb-4">
+                            <h4 className="font-bold">Inspector</h4>
+                            <button onClick={() => setSelectedElement(null)} className="text-muted hover:text-white">Close</button>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="bg-bg p-2 rounded">
+                                <p className="text-muted">Element: &lt;{selectedElement.tagName.toLowerCase()}&gt;</p>
+                                <p className="text-muted">ID: {selectedElement.id || 'none'}</p>
+                            </div>
+                            <div className="space-y-1">
+                                <p className="font-bold text-muted">Computed Styles</p>
+                                <div className="h-40 overflow-y-auto bg-bg p-2 rounded font-mono text-[10px]">
+                                    {Object.entries(selectedElement.styles).map(([key, value]) => (
+                                        <div key={key} className="flex justify-between">
+                                            <span className="text-acc">{key}:</span>
+                                            <span className="text-white">{value as string}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                 )}
+                 {/* Undo/Redo Toolbar */}
+                 {showCode && (
+                     <div className="absolute bottom-4 right-4 flex gap-2">
+                         <button onClick={undo} aria-label="Undo" className="p-2 bg-bg3 rounded">Undo</button>
+                         <button onClick={redo} aria-label="Redo" className="p-2 bg-bg3 rounded">Redo</button>
+                     </div>
+                 )}
             </div>
           </>
         ) : null}

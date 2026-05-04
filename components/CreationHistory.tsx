@@ -41,6 +41,7 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
             <button
               key={item.id}
               onClick={() => onSelect(item)}
+              aria-label={`Restore creation: ${item.name}`}
               className="group flex-shrink-0 relative flex flex-col text-left w-44 h-28 bg-bg2/60 backdrop-blur-md hover:bg-bg2 border border-bdr hover:border-acc/70 hover:shadow-[0_0_20px_rgba(0,216,255,0.15)] rounded-2xl transition-all duration-300 overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
