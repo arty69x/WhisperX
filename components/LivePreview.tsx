@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowDownTrayIcon, PlusIcon, ViewColumnsIcon, DocumentIcon, CodeBracketIcon, XMarkIcon, ShareIcon, CommandLineIcon, SparklesIcon, CpuChipIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, PlusIcon, ViewColumnsIcon, DocumentIcon, CodeBracketIcon, XMarkIcon, ShareIcon, CommandLineIcon, SparklesIcon, CpuChipIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import { Creation } from './CreationHistory';
 import Editor from '@monaco-editor/react';
 import prettier from 'prettier/standalone';
@@ -305,17 +305,31 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                 cursor: default;
             }
             .interactive-node { transition: all 0.2s ease; cursor: pointer; }
+                                    .interactive-node { transition: all 0.2s ease; cursor: pointer; }
             .interactive-node:hover { transform: scale(1.05); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
             
-            /* Animation */
-            @keyframes bounce {
-                0%, 100% { transform: scale(1); }
-                50% { transform: scale(1.05); }
+            /* Focus Indicator */
+            *:focus { outline: 2px solid #00d8ff !important; outline-offset: 2px; }
+            
+            /* Pulsate Animation */
+            @keyframes pulsate {
+                0% { box-shadow: 0 0 0 0 rgba(0, 216, 255, 0.7); }
+                50% { box-shadow: 0 0 15px 5px rgba(0, 216, 255, 0.9); }
+                100% { box-shadow: 0 0 0 0 rgba(0, 216, 255, 0.7); }
             }
-            .drop-confirmed { animation: bounce 0.3s ease; }
+            .inspector-ring { 
+                animation: pulsate 1.5s infinite ease-in-out;
+                outline: 3px solid #00d8ff !important;
+                outline-offset: 2px;
+            }
+            .inspector-selected { outline: 3px solid #00d8ff !important; outline-offset: 2px; box-shadow: 0 0 10px #00d8ff; }
+            
+            /* Drag and Drop - Ghost and Highlight */
+            .dragging { opacity: 0.5; box-shadow: 0 0 20px rgba(0, 216, 255, 0.8); cursor: grabbing !important; transition: opacity 0.2s; }
+            .drop-target { border: 2px solid #00d8ff; background: rgba(0, 216, 255, 0.2); transition: all 0.2s ease; transform: scale(1.02); box-shadow: 0 0 15px rgba(0, 216, 255, 0.6); }
+            .drag-invalid { cursor: no-drop !important; border-color: red !important; }
 
-            .grid-debug-lines { outline: 1px solid blue !important; }
-            .grid-debug-outline * { outline: 1px solid red !important; }
+            /* Grid Debugging */
             .grid-gap-label {
                 position: absolute;
                 background: rgba(0, 0, 0, 0.7);
@@ -326,12 +340,13 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                 z-index: 1000;
                 pointer-events: none;
             }
-            .grid-item-selected { outline: 3px solid yellow !important; }
-            .inspector-ring { outline: 3px solid #ff00ff !important; outline-offset: 2px; }
-            .inspector-selected { outline: 3px solid #00d8ff !important; outline-offset: 2px; box-shadow: 0 0 10px #00d8ff; }
             
             /* Custom CSS requested in focus-mode */
-            div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(6) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > label:nth-of-type(1) > div:nth-of-type(3) {
+            div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(6) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > label:nth-of-type(1):hover {
+                filter: invert(1);
+                transition: filter 0.3s ease;
+            }
+            div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(6) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > label:nth-of-type(1) {
               height: 350px;
               padding-top: 0px;
               padding-left: 33px;
@@ -339,15 +354,6 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
             div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(6) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) {
               height: 500px;
             }
-            
-            /* Custom Cursor */
-            .cursor-drag { cursor: grabbing !important; }
-            
-            /* Drag and Drop */
-            .dragging { opacity: 0.5; border: 2px dashed #00d8ff; cursor: grabbing !important; transition: opacity 0.2s; }
-            .drop-target { border: 2px solid #00d8ff; background: rgba(0, 216, 255, 0.1); transition: all 0.2s ease; transform: scale(1.02); }
-            /* Cancel Indicator */
-            .drag-invalid { cursor: no-drop !important; border-color: red !important; }
         `;
         doc.head.appendChild(style);
 
@@ -398,14 +404,16 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                 document.querySelectorAll('.inspector-selected').forEach(e => e.classList.remove('inspector-selected'));
                 el.classList.add('inspector-selected');
 
-                // Get DOM hierarchy
+                // Get DOM hierarchy and accessibility info
                 const breadcrumbs = [];
                 let current = el;
                 while (current && current !== document.body) {
                     breadcrumbs.push({
                         tagName: current.tagName,
                         id: current.id,
-                        className: current.className
+                        className: current.className,
+                        role: current.getAttribute('role') || 'n/a',
+                        ariaLabel: current.getAttribute('aria-label') || 'n/a'
                     });
                     current = current.parentElement;
                 }
@@ -419,7 +427,13 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                     styles: Object.fromEntries(Object.entries(computed).filter(([k,v]) => typeof v === 'string')),
                     html: el.outerHTML,
                     dimensions: { width: rect.width, height: rect.height, top: rect.top, left: rect.left },
-                    breadcrumbs: breadcrumbs.reverse()
+                    breadcrumbs: breadcrumbs.reverse(),
+                    ariaProperties: {
+                        role: el.getAttribute('role') || 'n/a',
+                        ariaLabel: el.getAttribute('aria-label') || 'n/a',
+                        ariaExpanded: el.getAttribute('aria-expanded') || 'n/a',
+                        ariaHidden: el.getAttribute('aria-hidden') || 'n/a'
+                    }
                 };
                 window.parent.postMessage({ type: 'INSPECT_ELEMENT', info }, '*');
             }, true);
@@ -736,6 +750,20 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                     >
                         <DocumentIcon className="w-4 h-4" />
                     </button>
+                    
+                    <button 
+                        onClick={() => {
+                            const codeToCopy = customCode || creation?.html;
+                            if (codeToCopy) {
+                                navigator.clipboard.writeText(codeToCopy);
+                                alert("HTML copied to clipboard!");
+                            }
+                        }}
+                        title="Copy HTML to Clipboard"
+                        className="text-dim hover:text-txt transition-all p-1.5 rounded-lg border border-transparent hover:border-bdr hover:bg-bg3/50"
+                    >
+                        <ClipboardDocumentIcon className="w-4 h-4" />
+                    </button>
 
                     <button 
                         onClick={handleExport}
@@ -939,8 +967,9 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                             <button onClick={() => setSelectedElement(null)} className="text-muted hover:text-white">Close</button>
                         </div>
                         <div className="space-y-4">
-                            <div className="bg-bg p-2 rounded">
-                                <div className="text-[10px] text-muted mb-2 overflow-auto whitespace-nowrap">
+                            <div className="bg-bg p-2 rounded text-[10px]">
+                                <p className="font-bold text-muted mb-1">Hierarchy</p>
+                                <div className="text-muted mb-2 overflow-auto whitespace-nowrap">
                                     {selectedElement.breadcrumbs?.map((b: any, i: number) => (
                                         <span key={i}>
                                             {b.tagName.toLowerCase()}{b.id ? `#${b.id}` : ''}
@@ -948,9 +977,16 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                                         </span>
                                     ))}
                                 </div>
-                                <p className="text-muted text-[10px]">Dimensions: {selectedElement.dimensions?.width.toFixed(0)}x{selectedElement.dimensions?.height.toFixed(0)}</p>
-                                <p className="text-muted text-[10px]">Position: {selectedElement.dimensions?.top.toFixed(0)} top, {selectedElement.dimensions?.left.toFixed(0)} left</p>
+                                <p className="font-bold text-muted mb-1">Accessibility</p>
+                                <div className="text-muted grid grid-cols-2 gap-1">
+                                    <span>Role: {selectedElement.ariaProperties?.role}</span>
+                                    <span>Label: {selectedElement.ariaProperties?.ariaLabel}</span>
+                                    <span>Expanded: {selectedElement.ariaProperties?.ariaExpanded}</span>
+                                    <span>Hidden: {selectedElement.ariaProperties?.ariaHidden}</span>
+                                </div>
                             </div>
+                            <div className="text-muted text-[10px]">Dimensions: {selectedElement.dimensions?.width.toFixed(0)}x{selectedElement.dimensions?.height.toFixed(0)}</div>
+                            <div className="text-muted text-[10px]">Position: {selectedElement.dimensions?.top.toFixed(0)} top, {selectedElement.dimensions?.left.toFixed(0)} left</div>
                             <div className="flex gap-2 mb-2">
                                 <button onClick={copyStyles} className="bg-acc text-bg text-[10px] px-2 py-1 rounded">Copy Styles</button>
                                 <button onClick={undoStyle} className="bg-bg3 text-white text-[10px] px-2 py-1 rounded" disabled={styleHistory.length === 0}>Undo</button>

@@ -21,15 +21,20 @@ interface CreationHistoryProps {
 
 export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSelect, onExportAll }) => {
   const [sortBy, setSortBy] = useState<'name' | 'newest' | 'oldest'>('newest');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const sortedHistory = useMemo(() => {
-    return [...history].sort((a, b) => {
+    let result = [...history];
+    if (searchTerm) {
+      result = result.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    }
+    return result.sort((a, b) => {
       if (sortBy === 'name') return a.name.localeCompare(b.name);
       if (sortBy === 'newest') return b.timestamp.getTime() - a.timestamp.getTime();
       if (sortBy === 'oldest') return a.timestamp.getTime() - b.timestamp.getTime();
       return 0;
     });
-  }, [history, sortBy]);
+  }, [history, sortBy, searchTerm]);
 
   if (history.length === 0) return null;
 
@@ -42,6 +47,13 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
             <div className="h-px w-20 bg-bdr"></div>
         </div>
         <div className="flex items-center space-x-3">
+            <input 
+                type="text"
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="text-[10px] bg-bg2 text-txt border border-bdr rounded px-2 py-1 placeholder-muted focus:border-acc focus:outline-none"
+            />
             <div className="relative">
                 <select 
                     value={sortBy} 
