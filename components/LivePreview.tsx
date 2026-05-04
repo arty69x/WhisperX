@@ -303,32 +303,42 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                 filter: grayscale(${filter.grayscale}%) sepia(${filter.sepia}%) brightness(${filter.brightness}%) contrast(${filter.contrast}%); 
                 transition: filter 0.3s ease;
                 cursor: default;
+                font-family: 'Inter', sans-serif;
+                background-color: #0f172a;
+                color: #f8fafc;
             }
             .interactive-node { transition: all 0.2s ease; cursor: pointer; }
-                                    .interactive-node { transition: all 0.2s ease; cursor: pointer; }
-            .interactive-node:hover { transform: scale(1.05); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+            .interactive-node:hover { transform: scale(1.05); box-shadow: 0 4px 6px rgba(0,216,255,0.3); }
             
-            /* Focus Indicator */
-            *:focus { outline: 2px solid #00d8ff !important; outline-offset: 2px; }
+            /* Enhanced Focus Indicator */
+            *:focus { outline: 2px solid #00d8ff !important; outline-offset: 2px; box-shadow: 0 0 10px #00d8ff; }
             
-            /* Pulsate Animation */
-            @keyframes pulsate {
-                0% { box-shadow: 0 0 0 0 rgba(0, 216, 255, 0.7); }
-                50% { box-shadow: 0 0 15px 5px rgba(0, 216, 255, 0.9); }
-                100% { box-shadow: 0 0 0 0 rgba(0, 216, 255, 0.7); }
+            /* Futuristic Pulsating Neon Inspector Ring */
+            @keyframes neon-pulsate {
+                0% { box-shadow: 0 0 5px #00d8ff, 0 0 10px #00d8ff, 0 0 20px #00d8ff; }
+                50% { box-shadow: 0 0 10px #00d8ff, 0 0 20px #00d8ff, 0 0 40px #00d8ff; }
+                100% { box-shadow: 0 0 5px #00d8ff, 0 0 10px #00d8ff, 0 0 20px #00d8ff; }
             }
             .inspector-ring { 
-                animation: pulsate 1.5s infinite ease-in-out;
-                outline: 3px solid #00d8ff !important;
-                outline-offset: 2px;
+                animation: neon-pulsate 1.5s infinite ease-in-out;
+                border: 2px solid #00d8ff !important;
+                border-radius: 4px;
             }
-            .inspector-selected { outline: 3px solid #00d8ff !important; outline-offset: 2px; box-shadow: 0 0 10px #00d8ff; }
+            .inspector-selected { outline: 3px solid #00d8ff !important; outline-offset: 2px; box-shadow: 0 0 20px #00d8ff; }
             
             /* Drag and Drop - Ghost and Highlight */
-            .dragging { opacity: 0.5; box-shadow: 0 0 20px rgba(0, 216, 255, 0.8); cursor: grabbing !important; transition: opacity 0.2s; }
-            .drop-target { border: 2px solid #00d8ff; background: rgba(0, 216, 255, 0.2); transition: all 0.2s ease; transform: scale(1.02); box-shadow: 0 0 15px rgba(0, 216, 255, 0.6); }
-            .drag-invalid { cursor: no-drop !important; border-color: red !important; }
+            .dragging { opacity: 0.4; box-shadow: 0 0 25px rgba(0, 216, 255, 0.9); transform: scale(0.95); cursor: grabbing !important; transition: opacity 0.2s, transform 0.2s; }
+            .drop-target { border: 2px dashed #00d8ff; background: rgba(0, 216, 255, 0.15); transition: all 0.3s ease; transform: scale(1.02); box-shadow: 0 0 20px rgba(0, 216, 255, 0.5); }
+            .drag-invalid { cursor: no-drop !important; border-color: #ef4444 !important; }
 
+            /* Advanced Controls */
+            .custom-slider { -webkit-appearance: none; width: 100%; height: 6px; background: #334155; outline: none; border-radius: 3px; }
+            .custom-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #00d8ff; cursor: pointer; transition: background 0.3s; }
+            .custom-slider::-webkit-slider-thumb:hover { background: #fff; }
+            
+            .custom-carousel { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 10px; padding: 10px; }
+            .carousel-item { flex: 0 0 80%; scroll-snap-align: center; background: #1e293b; padding: 20px; border-radius: 8px; }
+            
             /* Grid Debugging */
             .grid-gap-label {
                 position: absolute;
@@ -357,6 +367,24 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
         `;
         doc.head.appendChild(style);
 
+        // Inject advanced components into DOM
+        const controlsContainer = document.createElement('div');
+        controlsContainer.className = 'p-6 space-y-6';
+        controlsContainer.innerHTML = `
+            <div class="carousel-container overflow-hidden">
+                <div class="custom-carousel">
+                    <div class="carousel-item"><h3>Physics Engine</h3><p>Simulating advanced reactive physics.</p></div>
+                    <div class="carousel-item"><h3>Data Dynamics</h3><p>Interative real-time data flow.</p></div>
+                </div>
+            </div>
+            <input type="range" class="custom-slider" min="0" max="100" value="50" />
+            <button class="bg-acc text-bg px-4 py-2 rounded font-bold hover:scale-105 transition-transform" 
+                    aria-label="Toggle Feature" title="Click to engage physics engine">
+                Engage Physics
+            </button>
+        `;
+        doc.body.prepend(controlsContainer);
+
         // Inject interaction script
         const script = document.createElement('script');
         script.textContent = `
@@ -383,6 +411,31 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
             }
             
             // Interaction Controller
+            
+            // Tooltips
+            document.querySelectorAll('[title]').forEach(el => {
+                el.addEventListener('mouseenter', (e) => {
+                    const tooltip = document.createElement('div');
+                    tooltip.textContent = el.getAttribute('title');
+                    tooltip.id = 'tooltip';
+                    tooltip.style.position = 'absolute';
+                    tooltip.style.background = '#00d8ff';
+                    tooltip.style.color = '#0f172a';
+                    tooltip.style.padding = '5px 10px';
+                    tooltip.style.borderRadius = '4px';
+                    tooltip.style.fontSize = '12px';
+                    tooltip.style.zIndex = '10000';
+                    tooltip.style.pointerEvents = 'none';
+                    document.body.appendChild(tooltip);
+                    
+                    const rect = el.getBoundingClientRect();
+                    tooltip.style.left = (rect.left + window.scrollX) + 'px';
+                    tooltip.style.top = (rect.top + window.scrollY - 30) + 'px';
+                });
+                el.addEventListener('mouseleave', () => {
+                    document.getElementById('tooltip')?.remove();
+                });
+            });
             
             // News button injection
             const newsBtn = document.createElement('button');
