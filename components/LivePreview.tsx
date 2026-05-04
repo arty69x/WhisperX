@@ -184,14 +184,31 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
     const [isInspectorActive, setIsInspectorActive] = useState(false);
     const [selectedElement, setSelectedElement] = useState<any>(null);
     const [styleHistory, setStyleHistory] = useState<any[]>([]);
-    
-    // Add logic to toggle inspector ring
+    const [stylePresets, setStylePresets] = useState<Record<string, any>>({});
+
+    // Reset history and update inspector ring when element changes
     useEffect(() => {
+        setStyleHistory([]);
+        setStyleRedoHistory([]);
         const iframe = document.querySelector('iframe');
         if (iframe?.contentWindow) {
             iframe.contentWindow.postMessage({ type: 'SET_INSPECTOR_RING', id: selectedElement?.id }, '*');
         }
     }, [selectedElement]);
+
+    const saveElementPreset = () => {
+        if (!newPresetName || !selectedElement) return;
+        const updated = { ...stylePresets, [newPresetName]: selectedElement.styles };
+        setStylePresets(updated);
+        localStorage.setItem('stylePresets', JSON.stringify(updated));
+        setNewPresetName('');
+    };
+
+    const loadElementPreset = (name: string) => {
+        if (!selectedElement) return;
+        setStyleHistory([...styleHistory, selectedElement.styles]);
+        setSelectedElement({ ...selectedElement, styles: stylePresets[name] });
+    };
     const [filterPresets, setFilterPresets] = useState<Record<string, typeof filter>>({
         neon: { grayscale: 0, sepia: 0, brightness: 150, contrast: 120 },
         cyberpunk: { grayscale: 10, sepia: 50, brightness: 120, contrast: 150 },
@@ -234,11 +251,24 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
         navigator.clipboard.writeText(styleStr);
     };
 
-    const revertToOriginal = () => {
+    const [styleRedoHistory, setStyleRedoHistory] = useState<any[]>([]);
+
+    // Undo Style
+    const undoStyle = () => {
         if (styleHistory.length === 0) return;
-        const last = styleHistory[styleHistory.length - 1];
-        setSelectedElement({ ...selectedElement, styles: last });
+        const previous = styleHistory[styleHistory.length - 1];
+        setStyleRedoHistory([...styleRedoHistory, selectedElement.styles]);
+        setSelectedElement({ ...selectedElement, styles: previous });
         setStyleHistory(styleHistory.slice(0, -1));
+    };
+
+    // Redo Style
+    const redoStyle = () => {
+        if (styleRedoHistory.length === 0) return;
+        const next = styleRedoHistory[styleRedoHistory.length - 1];
+        setStyleHistory([...styleHistory, selectedElement.styles]);
+        setSelectedElement({ ...selectedElement, styles: next });
+        setStyleRedoHistory(styleRedoHistory.slice(0, -1));
     };
     useEffect(() => {
         const handleMessage = (e: MessageEvent) => {
@@ -274,8 +304,8 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                 transition: filter 0.3s ease;
                 cursor: default;
             }
-            button, a { cursor: pointer; transition: transform 0.2s, filter 0.2s; }
-            button:hover, a:hover { transform: translateY(-2px); filter: brightness(1.1); }
+            .interactive-node { transition: all 0.2s ease; cursor: pointer; }
+            .interactive-node:hover { transform: scale(1.05); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
             
             /* Animation */
             @keyframes bounce {
@@ -298,6 +328,17 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
             }
             .grid-item-selected { outline: 3px solid yellow !important; }
             .inspector-ring { outline: 3px solid #ff00ff !important; outline-offset: 2px; }
+            .inspector-selected { outline: 3px solid #00d8ff !important; outline-offset: 2px; box-shadow: 0 0 10px #00d8ff; }
+            
+            /* Custom CSS requested in focus-mode */
+            div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(6) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > label:nth-of-type(1) > div:nth-of-type(3) {
+              height: 350px;
+              padding-top: 0px;
+              padding-left: 33px;
+            }
+            div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(6) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) {
+              height: 500px;
+            }
             
             /* Custom Cursor */
             .cursor-drag { cursor: grabbing !important; }
@@ -307,10 +348,6 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
             .drop-target { border: 2px solid #00d8ff; background: rgba(0, 216, 255, 0.1); transition: all 0.2s ease; transform: scale(1.02); }
             /* Cancel Indicator */
             .drag-invalid { cursor: no-drop !important; border-color: red !important; }
-            
-            /* Interactive State */
-            .interactive-node { transition: all 0.2s ease; }
-            .interactive-node:hover { transform: scale(1.01); box-shadow: 0 0 5px rgba(0,216,255,0.2); }
         `;
         doc.head.appendChild(style);
 
@@ -322,7 +359,32 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
             // Audio Feedback
             const playAudio = (sound) => window.parent.postMessage({ type: 'PLAY_AUDIO', sound }, '*');
             
+            // News Fetching logic
+            async function fetchNews() {
+               const btn = document.getElementById('news-btn');
+               if (!btn) return;
+               btn.textContent = 'Loading...';
+               try {
+                  const res = await fetch('https://jsonplaceholder.typicode.com/posts?_limit=3');
+                  const news = await res.json();
+                  const container = document.createElement('div');
+                  container.innerHTML = news.map(n => '<p><strong>' + n.title + '</strong></p>').join('');
+                  btn.parentElement.appendChild(container);
+                  btn.remove();
+               } catch (e) {
+                  btn.textContent = 'Failed to load news';
+               }
+            }
+            
             // Interaction Controller
+            
+            // News button injection
+            const newsBtn = document.createElement('button');
+            newsBtn.id = 'news-btn';
+            newsBtn.textContent = 'Fetch News';
+            newsBtn.onclick = () => fetchNews();
+            document.body.prepend(newsBtn);
+
             document.addEventListener('click', (e) => {
                 if (!isInspectorActive) {
                     playAudio('click');
@@ -331,6 +393,23 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                 e.preventDefault();
                 e.stopPropagation();
                 const el = e.target;
+                
+                // Highlight selected element
+                document.querySelectorAll('.inspector-selected').forEach(e => e.classList.remove('inspector-selected'));
+                el.classList.add('inspector-selected');
+
+                // Get DOM hierarchy
+                const breadcrumbs = [];
+                let current = el;
+                while (current && current !== document.body) {
+                    breadcrumbs.push({
+                        tagName: current.tagName,
+                        id: current.id,
+                        className: current.className
+                    });
+                    current = current.parentElement;
+                }
+
                 const computed = window.getComputedStyle(el);
                 const rect = el.getBoundingClientRect();
                 const info = {
@@ -339,7 +418,8 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                     className: el.className,
                     styles: Object.fromEntries(Object.entries(computed).filter(([k,v]) => typeof v === 'string')),
                     html: el.outerHTML,
-                    dimensions: { width: rect.width, height: rect.height, top: rect.top, left: rect.left }
+                    dimensions: { width: rect.width, height: rect.height, top: rect.top, left: rect.left },
+                    breadcrumbs: breadcrumbs.reverse()
                 };
                 window.parent.postMessage({ type: 'INSPECT_ELEMENT', info }, '*');
             }, true);
@@ -359,15 +439,22 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
             function showGridGaps() {
                 document.querySelectorAll('.grid-gap-label').forEach(el => el.remove());
                 document.querySelectorAll('*').forEach(el => {
-                    const style = window.getComputedStyle(el);
-                    if (style.display === 'grid' && (style.columnGap !== 'normal' || style.rowGap !== 'normal')) {
-                        const rect = el.getBoundingClientRect();
-                        const label = document.createElement('div');
-                        label.className = 'grid-gap-label';
-                        label.textContent = "Gap: " + style.columnGap + "/" + style.rowGap;
-                        label.style.top = (rect.top + window.scrollY) + "px";
-                        label.style.left = (rect.left + window.scrollX) + "px";
-                        document.body.appendChild(label);
+                    if (window.getComputedStyle(el).display === 'grid') {
+                        el.addEventListener('mouseenter', (e) => {
+                             const style = window.getComputedStyle(el);
+                             if (style.columnGap !== 'normal' || style.rowGap !== 'normal') {
+                                 const label = document.createElement('div');
+                                 label.className = 'grid-gap-label';
+                                 label.textContent = "Gap: " + style.columnGap + "/" + style.rowGap;
+                                 label.style.top = (el.getBoundingClientRect().top + window.scrollY) + "px";
+                                 label.style.left = (el.getBoundingClientRect().left + window.scrollX) + "px";
+                                 label.id = 'active-grid-label';
+                                 document.body.appendChild(label);
+                             }
+                        });
+                        el.addEventListener('mouseleave', () => {
+                             document.getElementById('active-grid-label')?.remove();
+                        });
                     }
                 });
             }
@@ -383,22 +470,26 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
             document.addEventListener('dragend', (e) => {
                 e.target.classList.remove('dragging');
                 document.body.classList.remove('cursor-drag');
+                document.querySelectorAll('.drop-target').forEach(el => el.style.boxShadow = 'none');
             });
             document.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 const target = e.target.closest('*');
-                if (isInspectorActive) return;
+                if (isInspectorActive || !target) return;
                 
-                if (target && target !== draggedNode && target.parentElement === draggedNode.parentElement) {
+                if (target.parentElement === draggedNode.parentElement) {
+                    target.style.boxShadow = '0 0 10px rgba(0, 216, 255, 0.8)';
                     target.classList.add('drop-target');
                     target.classList.remove('drag-invalid');
-                } else if (target) {
+                } else if (target !== draggedNode) {
+                    target.style.cursor = 'no-drop';
                     target.classList.add('drag-invalid');
                 }
             });
             document.addEventListener('dragleave', (e) => { 
-                e.target.classList.remove('drop-target');
-                e.target.classList.remove('drag-invalid');
+                e.target.style.boxShadow = 'none';
+                e.target.style.cursor = 'auto';
+                e.target.classList.remove('drop-target', 'drag-invalid');
             });
             document.addEventListener('drop', (e) => {
                 e.preventDefault();
@@ -629,7 +720,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                             if (creation) {
                                 const url = `${window.location.origin}/#creation/${creation.id}`;
                                 navigator.clipboard.writeText(url);
-                                alert(`Link copied to clipboard!\n\n${url}\n\n(Note: works locally or via a persistent backend)`);
+                                alert(`Link copied to clipboard!\n\n${url}`);
                             }
                         }}
                         title="Share Creation"
@@ -655,7 +746,11 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                     </button>
 
                     <button 
-                        onClick={onReset}
+                        onClick={() => {
+                            if (window.confirm("Discard current changes?")) {
+                                onReset();
+                            }
+                        }}
                         title="New Upload"
                         className="ml-2 flex items-center space-x-1.5 text-xs font-bold bg-white text-bg hover:bg-acc hover:text-bg hover:shadow-[0_0_15px_rgba(0,216,255,0.4)] px-4 py-1.5 rounded-lg transition-all duration-300 transform hover:scale-105"
                     >
@@ -845,29 +940,73 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                         </div>
                         <div className="space-y-4">
                             <div className="bg-bg p-2 rounded">
-                                <p className="text-muted">Element: &lt;{selectedElement.tagName.toLowerCase()}&gt;</p>
-                                <p className="text-muted">ID: {selectedElement.id || 'none'}</p>
-                                <p className="text-muted">Dimensions: {selectedElement.dimensions?.width.toFixed(0)}x{selectedElement.dimensions?.height.toFixed(0)}</p>
-                                <p className="text-muted">Position: {selectedElement.dimensions?.top.toFixed(0)} top, {selectedElement.dimensions?.left.toFixed(0)} left</p>
+                                <div className="text-[10px] text-muted mb-2 overflow-auto whitespace-nowrap">
+                                    {selectedElement.breadcrumbs?.map((b: any, i: number) => (
+                                        <span key={i}>
+                                            {b.tagName.toLowerCase()}{b.id ? `#${b.id}` : ''}
+                                            {i < selectedElement.breadcrumbs.length - 1 && ' > '}
+                                        </span>
+                                    ))}
+                                </div>
+                                <p className="text-muted text-[10px]">Dimensions: {selectedElement.dimensions?.width.toFixed(0)}x{selectedElement.dimensions?.height.toFixed(0)}</p>
+                                <p className="text-muted text-[10px]">Position: {selectedElement.dimensions?.top.toFixed(0)} top, {selectedElement.dimensions?.left.toFixed(0)} left</p>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 mb-2">
                                 <button onClick={copyStyles} className="bg-acc text-bg text-[10px] px-2 py-1 rounded">Copy Styles</button>
-                                <button onClick={revertToOriginal} className="bg-bg3 text-white text-[10px] px-2 py-1 rounded">Revert Last</button>
+                                <button onClick={undoStyle} className="bg-bg3 text-white text-[10px] px-2 py-1 rounded" disabled={styleHistory.length === 0}>Undo</button>
+                                <button onClick={redoStyle} className="bg-bg3 text-white text-[10px] px-2 py-1 rounded" disabled={styleRedoHistory.length === 0}>Redo</button>
+                            </div>
+                            <div className="flex gap-2 mb-4">
+                                <input 
+                                    className="bg-bg text-txt text-[10px] px-2 py-1 rounded flex-1"
+                                    placeholder="Preset Name..."
+                                    value={newPresetName}
+                                    onChange={(e) => setNewPresetName(e.target.value)}
+                                />
+                                <button onClick={saveElementPreset} className="bg-grn text-bg text-[10px] px-2 py-1 rounded">Save</button>
                             </div>
                             <div className="space-y-1">
-                                <p className="font-bold text-muted">Computed Styles</p>
-                                <div className="h-40 overflow-y-auto bg-bg p-2 rounded font-mono text-[10px]">
+                                <p className="font-bold text-muted text-[10px]">Computed Styles</p>
+                                <div className="h-64 overflow-y-auto bg-bg p-2 rounded font-mono text-[10px] space-y-1">
                                     {Object.entries(selectedElement.styles).map(([key, value]) => (
-                                        <div key={key} className="flex justify-between">
-                                            <span className="text-acc">{key}:</span>
-                                            <input 
-                                                className="bg-transparent text-right text-white w-20"
-                                                value={value as string}
-                                                onChange={(e) => {
-                                                    setStyleHistory([...styleHistory, selectedElement.styles]);
-                                                    updateElementStyle(key, e.target.value);
-                                                }}
-                                            />
+                                        <div key={key} className="flex justify-between items-center group">
+                                            <span className="text-acc shrink-0 w-1/3">{key}:</span>
+                                            <div className="flex items-center w-2/3">
+                                                <input 
+                                                    className="bg-bg2 text-txt text-right flex-1 border-b border-transparent group-hover:border-acc transition-colors focus:border-acc"
+                                                    value={value as string}
+                                                    onChange={(e) => {
+                                                        setStyleHistory([...styleHistory, selectedElement.styles]);
+                                                        updateElementStyle(key, e.target.value);
+                                                    }}
+                                                />
+                                                {key.includes('color') && (
+                                                    <input 
+                                                        type="color" 
+                                                        className="w-4 h-4 ml-1 cursor-pointer"
+                                                        value={value as string}
+                                                        onChange={(e) => {
+                                                            setStyleHistory([...styleHistory, selectedElement.styles]);
+                                                            updateElementStyle(key, e.target.value);
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="space-y-1">
+                                <p className="font-bold text-muted text-[10px]">Presets</p>
+                                <div className="flex flex-col gap-1">
+                                    {Object.entries(stylePresets).map(([p, styles]) => (
+                                        <div key={p} className="flex items-center justify-between bg-bg2 p-1 rounded">
+                                            <button onClick={() => loadElementPreset(p)} className="text-[10px] flex-1 text-left">{p}</button>
+                                            <button onClick={() => {
+                                                const newPresets = {...stylePresets};
+                                                delete newPresets[p];
+                                                setStylePresets(newPresets);
+                                            }} className="text-[10px] text-red-500">Del</button>
                                         </div>
                                     ))}
                                 </div>

@@ -2,8 +2,8 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import React from 'react';
-import { ClockIcon, ArrowRightIcon, DocumentIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import React, { useState, useMemo } from 'react';
+import { ClockIcon, ArrowRightIcon, DocumentIcon, PhotoIcon, ChevronUpDownIcon } from '@heroicons/react/24/outline';
 
 export interface Creation {
   id: string;
@@ -20,6 +20,17 @@ interface CreationHistoryProps {
 }
 
 export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSelect, onExportAll }) => {
+  const [sortBy, setSortBy] = useState<'name' | 'newest' | 'oldest'>('newest');
+
+  const sortedHistory = useMemo(() => {
+    return [...history].sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'newest') return b.timestamp.getTime() - a.timestamp.getTime();
+      if (sortBy === 'oldest') return a.timestamp.getTime() - b.timestamp.getTime();
+      return 0;
+    });
+  }, [history, sortBy]);
+
   if (history.length === 0) return null;
 
   return (
@@ -30,12 +41,26 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
             <h2 className="text-xs font-bold uppercase tracking-wider text-dim">Archive</h2>
             <div className="h-px w-20 bg-bdr"></div>
         </div>
-        <button onClick={() => onExportAll(history)} className="text-[10px] text-muted hover:text-white transition-colors uppercase tracking-wider">Export All</button>
+        <div className="flex items-center space-x-3">
+            <div className="relative">
+                <select 
+                    value={sortBy} 
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="text-[10px] bg-bg2 text-muted border border-bdr rounded px-2 py-1 appearance-none cursor-pointer hover:text-white"
+                >
+                    <option value="newest">Newest</option>
+                    <option value="oldest">Oldest</option>
+                    <option value="name">Name</option>
+                </select>
+                <ChevronUpDownIcon className="w-3 h-3 text-muted absolute right-1 top-1.5 pointer-events-none" />
+            </div>
+            <button onClick={() => onExportAll(history)} className="text-[10px] text-muted hover:text-white transition-colors uppercase tracking-wider">Export All</button>
+        </div>
       </div>
       
       {/* Horizontal Scroll Container for Compact Layout */}
       <div className="flex overflow-x-auto space-x-4 pb-2 px-2 scrollbar-hide">
-        {history.map((item) => {
+        {sortedHistory.map((item) => {
           const isPdf = item.originalImage?.startsWith('data:application/pdf');
           return (
             <button
