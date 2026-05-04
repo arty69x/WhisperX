@@ -679,7 +679,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
       `}
     >
       {/* Minimal Technical Header */}
-      <div className="bg-bg2/80 backdrop-blur-md px-4 py-3 flex items-center justify-between border-b border-bdr shrink-0">
+      <div className="bg-bg/80 backdrop-blur-xl px-5 py-3 flex items-center justify-between border-b border-bdr/50 bg-gradient-to-r from-bg2/50 to-bg/50 shrink-0">
         {/* Left: Controls */}
         <div className="flex items-center space-x-3 w-32">
            <div className="flex space-x-2 group/controls">
@@ -961,28 +961,28 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, u
                  )}
                  {/* Element Inspector Sidebar */}
                  {isInspectorActive && selectedElement && (
-                    <div className="absolute top-0 right-0 w-80 h-full bg-bg2/95 border-l border-bdr p-4 overflow-y-auto text-xs z-20">
-                        <div className="flex justify-between items-center mb-4">
-                            <h4 className="font-bold">Inspector</h4>
-                            <button onClick={() => setSelectedElement(null)} className="text-muted hover:text-white">Close</button>
+                    <div className="absolute top-0 right-0 w-80 h-full bg-bg/90 backdrop-blur-3xl border-l border-acc/20 p-5 overflow-y-auto text-xs z-20 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+                        <div className="flex justify-between items-center mb-6">
+                            <h4 className="font-bold text-acc tracking-wider uppercase text-[11px]">Inspector Panel</h4>
+                            <button onClick={() => setSelectedElement(null)} className="text-muted hover:text-white transition-colors">Close</button>
                         </div>
                         <div className="space-y-4">
-                            <div className="bg-bg p-2 rounded text-[10px]">
-                                <p className="font-bold text-muted mb-1">Hierarchy</p>
-                                <div className="text-muted mb-2 overflow-auto whitespace-nowrap">
+                            <div className="bg-bg2/50 border border-bdr/50 p-3 rounded-lg text-[10px]">
+                                <p className="font-bold text-acc mb-2 uppercase tracking-wide">Hierarchy</p>
+                                <div className="text-muted mb-3 overflow-auto whitespace-nowrap bg-black/20 p-2 rounded">
                                     {selectedElement.breadcrumbs?.map((b: any, i: number) => (
-                                        <span key={i}>
+                                        <span key={i} className="hover:text-acc cursor-pointer">
                                             {b.tagName.toLowerCase()}{b.id ? `#${b.id}` : ''}
                                             {i < selectedElement.breadcrumbs.length - 1 && ' > '}
                                         </span>
                                     ))}
                                 </div>
-                                <p className="font-bold text-muted mb-1">Accessibility</p>
-                                <div className="text-muted grid grid-cols-2 gap-1">
-                                    <span>Role: {selectedElement.ariaProperties?.role}</span>
-                                    <span>Label: {selectedElement.ariaProperties?.ariaLabel}</span>
-                                    <span>Expanded: {selectedElement.ariaProperties?.ariaExpanded}</span>
-                                    <span>Hidden: {selectedElement.ariaProperties?.ariaHidden}</span>
+                                <p className="font-bold text-acc mb-2 uppercase tracking-wide">Accessibility</p>
+                                <div className="text-muted grid grid-cols-2 gap-2 bg-black/20 p-2 rounded">
+                                    <span className="truncate">Role: {selectedElement.ariaProperties?.role}</span>
+                                    <span className="truncate">Label: {selectedElement.ariaProperties?.ariaLabel}</span>
+                                    <span className="truncate">Expanded: {selectedElement.ariaProperties?.ariaExpanded}</span>
+                                    <span className="truncate">Hidden: {selectedElement.ariaProperties?.ariaHidden}</span>
                                 </div>
                             </div>
                             <div className="text-muted text-[10px]">Dimensions: {selectedElement.dimensions?.width.toFixed(0)}x{selectedElement.dimensions?.height.toFixed(0)}</div>
